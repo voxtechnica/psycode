@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/anthropics/anthropic-sdk-go/packages/param"
 	"github.com/spf13/cobra"
 )
 
@@ -42,8 +41,9 @@ func NewModelCommand(apiClient *anthropic.Client, root *cobra.Command) *ModelCom
 		Long:  "List available models",
 		RunE:  c.list,
 	}
+	c.listCmd.Flags().BoolP("all", "a", false, "Complete list")
 	c.listCmd.Flags().Int64P("limit", "n", 20, "Page size limit")
-	c.listCmd.Flags().StringP("after", "a", "", "Last Model ID received")
+	c.listCmd.Flags().StringP("offset", "o", "", "Offset: last ID received")
 	c.baseCmd.AddCommand(c.listCmd)
 
 	// Read Command
@@ -54,7 +54,6 @@ func NewModelCommand(apiClient *anthropic.Client, root *cobra.Command) *ModelCom
 		Args:  cobra.MinimumNArgs(1),
 		RunE:  c.read,
 	}
-	// c.readCmd.Flags().BoolP("verbose", "v", false, "Verbose? (full JSON)")
 	c.baseCmd.AddCommand(c.readCmd)
 
 	return c
@@ -62,29 +61,43 @@ func NewModelCommand(apiClient *anthropic.Client, root *cobra.Command) *ModelCom
 
 // list the available models.
 func (c *ModelCommand) list(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	all, _ := cmd.Flags().GetBool("all")
 	limit, _ := cmd.Flags().GetInt64("limit")
 	parameters := anthropic.ModelListParams{
-		Limit: param.Opt[int64]{Value: limit},
+		Limit: anthropic.Int(limit),
 	}
-	after, _ := cmd.Flags().GetString("after")
-	if len(after) > 0 {
-		parameters.AfterID = param.Opt[string]{Value: after}
+	offset, _ := cmd.Flags().GetString("offset")
+	if len(offset) > 0 && !all {
+		parameters.AfterID = anthropic.String(offset)
 	}
-
-	// Retrieve the page:
-	page, err := c.apiClient.Models.List(ctx, parameters)
-	if err != nil {
-		return err
-	}
-
-	if c.raw {
-		// Display the raw JSON response
-		fmt.Println(page.RawJSON())
-	} else {
-		// Display a list of model IDs and creation timestamps
-		for _, model := range page.Data {
+	if all {
+		// Output the complete list with auto-paging
+		iter := c.apiClient.Models.ListAutoPaging(ctx, parameters)
+		for iter.Next() {
+			model := iter.Current()
 			fmt.Println(model.CreatedAt, model.ID)
+		}
+		if err := iter.Err(); err != nil {
+			return err
+		}
+	} else {
+		// Retrieve the specified page:
+		page, err := c.apiClient.Models.List(ctx, parameters)
+		if err != nil {
+			return err
+		}
+		if c.raw {
+			// Display the raw JSON response
+			fmt.Println(page.RawJSON())
+		} else {
+			// Display a list of model IDs and creation timestamps
+			for _, model := range page.Data {
+				fmt.Println(model.CreatedAt, model.ID)
+			}
 		}
 	}
 	return nil
@@ -92,8 +105,10 @@ func (c *ModelCommand) list(cmd *cobra.Command, args []string) error {
 
 // read the metadata for the specified model(s).
 func (c *ModelCommand) read(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
-	// verbose, _ := cmd.Flags().GetBool("verbose")
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	// Retrieve the model(s):
 	for _, modelID := range args {
@@ -102,6 +117,7 @@ func (c *ModelCommand) read(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
+		// Output model details in JSON. Raw contains no whitespace.
 		if c.raw {
 			fmt.Println(model.RawJSON())
 		} else {

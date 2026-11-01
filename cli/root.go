@@ -19,10 +19,9 @@ type RootCommand struct {
 	aboutCmd    *cobra.Command
 	docCmd      *cobra.Command
 	limerickCmd *cobra.Command
-	// batchCmd  *BatchCommand
-	// fileCmd   *FileCommand
-	modelCmd *ModelCommand
-	// textCmd   *TextCommand
+	batchCmd    *BatchCommand
+	modelCmd    *ModelCommand
+	textCmd     *TextCommand
 }
 
 // NewRootCommand creates and initializes the root command and all its subcommands.
@@ -78,12 +77,19 @@ func NewRootCommand(apiKey string, workspaceID string, apiClient *anthropic.Clie
 		Short: "Test LLM API access by generating a limerick",
 		Long:  "Test LLM API access by generating a limerick about psychology research.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			message, err := apiClient.Messages.New(context.Background(), anthropic.MessageNewParams{
+			ctx := cmd.Context()
+			if ctx == nil {
+				ctx = context.Background()
+			}
+			message, err := apiClient.Messages.New(ctx, anthropic.MessageNewParams{
 				MaxTokens: 1024,
 				Messages: []anthropic.MessageParam{
 					anthropic.NewUserMessage(anthropic.NewTextBlock("Compose a limerick about psychology research.")),
 				},
 				Model: anthropic.ModelClaudeSonnet5_5,
+				System: []anthropic.TextBlockParam{
+					{Text: "You are a playful poet who knows a lot about research methodologies."},
+				},
 			})
 			for _, block := range message.Content {
 				if textBlock, ok := block.AsAny().(anthropic.TextBlock); ok {
@@ -96,10 +102,9 @@ func NewRootCommand(apiKey string, workspaceID string, apiClient *anthropic.Clie
 	c.rootCmd.AddCommand(c.limerickCmd)
 
 	// Other Commands
-	// c.batchCmd = NewBatchCommand(apiClient, c.rootCmd)
-	// c.fileCmd = NewFileCommand(apiClient, c.rootCmd)
+	c.batchCmd = NewBatchCommand(apiClient, c.rootCmd)
 	c.modelCmd = NewModelCommand(apiClient, c.rootCmd)
-	// c.textCmd = NewTextCommand(apiClient, c.rootCmd)
+	c.textCmd = NewTextCommand(apiClient, c.rootCmd)
 
 	return c
 }
