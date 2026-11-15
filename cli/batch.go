@@ -112,7 +112,7 @@ func (c *BatchCommand) list(cmd *cobra.Command, args []string) error {
 		parameters.AfterID = anthropic.String(offset)
 	}
 	if !c.raw && !verbose {
-		fmt.Println("BatchID\tCreatedAt\tStatus")
+		fmt.Println("BatchID\tCreatedAt\tStatus\tSucceeded\tErrored\tProcessing")
 	}
 
 	if all {
@@ -129,7 +129,8 @@ func (c *BatchCommand) list(cmd *cobra.Command, args []string) error {
 				fmt.Println(string(j))
 			} else {
 				// Display a tabular list batches
-				fmt.Printf("%s\t%s\t%s\n", b.ID, b.CreatedAt.Format(time.DateTime), b.ProcessingStatus)
+				fmt.Printf("%s\t%s\t%s\t%d\t%d\t%d\n", b.ID, b.CreatedAt.Format(time.DateTime), b.ProcessingStatus,
+					b.RequestCounts.Succeeded, b.RequestCounts.Errored, b.RequestCounts.Processing)
 			}
 		}
 	} else {
@@ -151,7 +152,8 @@ func (c *BatchCommand) list(cmd *cobra.Command, args []string) error {
 		} else {
 			// Display a tabular list batches
 			for _, b := range page.Data {
-				fmt.Printf("%s\t%s\t%s\n", b.ID, b.CreatedAt.Format(time.DateTime), b.ProcessingStatus)
+				fmt.Printf("%s\t%s\t%s\t%d\t%d\t%d\n", b.ID, b.CreatedAt.Format(time.DateTime), b.ProcessingStatus,
+					b.RequestCounts.Succeeded, b.RequestCounts.Errored, b.RequestCounts.Processing)
 			}
 			if page.HasMore {
 				fmt.Printf("More results available. Use --limit=%d --offset=%s to retrieve.\n", limit, page.LastID)
@@ -196,17 +198,15 @@ func (c *BatchCommand) monitor(cmd *cobra.Command, args []string) error {
 	}
 	wait, _ := cmd.Flags().GetInt("wait")
 	batchID := args[0]
+	fmt.Println("BatchID\tCreatedAt\tStatus\tSucceeded\tErrored\tProcessing")
 	for {
-		batch, err := c.apiClient.Messages.Batches.Get(ctx, batchID, anthropic.MessageBatchGetParams{})
+		b, err := c.apiClient.Messages.Batches.Get(ctx, batchID, anthropic.MessageBatchGetParams{})
 		if err != nil {
 			return fmt.Errorf("read batch %s: %w", batchID, err)
 		}
-		j, err := json.MarshalIndent(batch, "", "  ")
-		if err != nil {
-			return fmt.Errorf("error marshalling Batch JSON: %w", err)
-		}
-		fmt.Println(string(j))
-		if batch.ProcessingStatus == anthropic.MessageBatchProcessingStatusEnded {
+		fmt.Printf("%s\t%s\t%s\t%d\t%d\t%d\n", b.ID, b.CreatedAt.Format(time.DateTime), b.ProcessingStatus,
+			b.RequestCounts.Succeeded, b.RequestCounts.Errored, b.RequestCounts.Processing)
+		if b.ProcessingStatus == anthropic.MessageBatchProcessingStatusEnded {
 			break
 		}
 		time.Sleep(time.Duration(wait) * time.Second)

@@ -6,27 +6,7 @@ import (
 	"strings"
 )
 
-// Selection is the type of score selection.
-type Selection string
-
-const (
-	First Selection = "first"
-	Last  Selection = "last"
-	All   Selection = "all"
-	None  Selection = "none"
-)
-
-// String returns the string representation of the Selection.
-func (s Selection) String() string {
-	return string(s)
-}
-
-// IsValid returns true if the Selection is valid.
-func (s Selection) IsValid() bool {
-	return s == First || s == Last || s == All || s == None
-}
-
-// SelectScore selects the desired score(s) from a block of text.
+// SelectScores selects the desired score(s) from a block of text.
 // Valid selections are "first", "last", "all", or "none".
 // An invalid selection defaults to "none".
 func SelectScores(s string, sel Selection) []float32 {
