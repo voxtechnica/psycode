@@ -112,7 +112,7 @@ func (c *BatchCommand) list(cmd *cobra.Command, args []string) error {
 		parameters.AfterID = anthropic.String(offset)
 	}
 	if !c.raw && !verbose {
-		fmt.Println("BatchID\tCreatedAt\tStatus\tSucceeded\tErrored\tProcessing")
+		fmt.Println("BatchID\tCreatedAt\tElapsed\tStatus\tSucceeded\tErrored\tProcessing")
 	}
 
 	if all {
@@ -128,9 +128,14 @@ func (c *BatchCommand) list(cmd *cobra.Command, args []string) error {
 				}
 				fmt.Println(string(j))
 			} else {
-				// Display a tabular list batches
-				fmt.Printf("%s\t%s\t%s\t%d\t%d\t%d\n", b.ID, b.CreatedAt.Format(time.DateTime), b.ProcessingStatus,
-					b.RequestCounts.Succeeded, b.RequestCounts.Errored, b.RequestCounts.Processing)
+				// Display a tabular list of batches
+				t := time.Now()
+				if !b.EndedAt.IsZero() {
+					t = b.EndedAt
+				}
+				elapsed := t.Sub(b.CreatedAt)
+				fmt.Printf("%s\t%s\t%v\t%s\t%d\t%d\t%d\n", b.ID, b.CreatedAt.Format(time.DateTime), elapsed,
+					b.ProcessingStatus, b.RequestCounts.Succeeded, b.RequestCounts.Errored, b.RequestCounts.Processing)
 			}
 		}
 	} else {
@@ -152,8 +157,13 @@ func (c *BatchCommand) list(cmd *cobra.Command, args []string) error {
 		} else {
 			// Display a tabular list batches
 			for _, b := range page.Data {
-				fmt.Printf("%s\t%s\t%s\t%d\t%d\t%d\n", b.ID, b.CreatedAt.Format(time.DateTime), b.ProcessingStatus,
-					b.RequestCounts.Succeeded, b.RequestCounts.Errored, b.RequestCounts.Processing)
+				t := time.Now()
+				if !b.EndedAt.IsZero() {
+					t = b.EndedAt
+				}
+				elapsed := t.Sub(b.CreatedAt)
+				fmt.Printf("%s\t%s\t%v\t%s\t%d\t%d\t%d\n", b.ID, b.CreatedAt.Format(time.DateTime), elapsed,
+					b.ProcessingStatus, b.RequestCounts.Succeeded, b.RequestCounts.Errored, b.RequestCounts.Processing)
 			}
 			if page.HasMore {
 				fmt.Printf("More results available. Use --limit=%d --offset=%s to retrieve.\n", limit, page.LastID)
@@ -198,14 +208,19 @@ func (c *BatchCommand) monitor(cmd *cobra.Command, args []string) error {
 	}
 	wait, _ := cmd.Flags().GetInt("wait")
 	batchID := args[0]
-	fmt.Println("BatchID\tCreatedAt\tStatus\tSucceeded\tErrored\tProcessing")
+	fmt.Println("BatchID\tCreatedAt\tElapsed\tStatus\tSucceeded\tErrored\tProcessing")
 	for {
 		b, err := c.apiClient.Messages.Batches.Get(ctx, batchID, anthropic.MessageBatchGetParams{})
 		if err != nil {
 			return fmt.Errorf("read batch %s: %w", batchID, err)
 		}
-		fmt.Printf("%s\t%s\t%s\t%d\t%d\t%d\n", b.ID, b.CreatedAt.Format(time.DateTime), b.ProcessingStatus,
-			b.RequestCounts.Succeeded, b.RequestCounts.Errored, b.RequestCounts.Processing)
+		t := time.Now()
+		if !b.EndedAt.IsZero() {
+			t = b.EndedAt
+		}
+		elapsed := t.Sub(b.CreatedAt)
+		fmt.Printf("%s\t%s\t%v\t%s\t%d\t%d\t%d\n", b.ID, b.CreatedAt.Format(time.DateTime), elapsed,
+			b.ProcessingStatus, b.RequestCounts.Succeeded, b.RequestCounts.Errored, b.RequestCounts.Processing)
 		if b.ProcessingStatus == anthropic.MessageBatchProcessingStatusEnded {
 			break
 		}

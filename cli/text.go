@@ -451,14 +451,19 @@ func (c *TextCommand) batchCreate(cmd *cobra.Command, args []string) error {
 	// Poll the batch operation for completion:
 	if wait > 0 {
 		fmt.Println("polling for batch completion... (Ctrl+C to cancel)")
-		fmt.Println("BatchID\tCreatedAt\tStatus\tSucceeded\tErrored\tProcessing")
+		fmt.Println("BatchID\tCreatedAt\tElapsed\tStatus\tSucceeded\tErrored\tProcessing")
 		for {
 			b, err := c.apiClient.Messages.Batches.Get(ctx, batchID, anthropic.MessageBatchGetParams{})
 			if err != nil {
 				return fmt.Errorf("read batch %s: %w", batchID, err)
 			}
-			fmt.Printf("%s\t%s\t%s\t%d\t%d\t%d\n", b.ID, b.CreatedAt.Format(time.DateTime), b.ProcessingStatus,
-				b.RequestCounts.Succeeded, b.RequestCounts.Errored, b.RequestCounts.Processing)
+			t := time.Now()
+			if !b.EndedAt.IsZero() {
+				t = b.EndedAt
+			}
+			elapsed := t.Sub(b.CreatedAt)
+			fmt.Printf("%s\t%s\t%v\t%s\t%d\t%d\t%d\n", b.ID, b.CreatedAt.Format(time.DateTime), elapsed,
+				b.ProcessingStatus, b.RequestCounts.Succeeded, b.RequestCounts.Errored, b.RequestCounts.Processing)
 			if b.ProcessingStatus == anthropic.MessageBatchProcessingStatusEnded {
 				break
 			}
