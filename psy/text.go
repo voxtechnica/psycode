@@ -83,42 +83,42 @@ func (t *Text) String() string {
 	return s
 }
 
-// GenerateText generates a text response based on the provided Text object and selection.
-func GenerateText(ctx context.Context, client *anthropic.Client, text Text) (Text, error) {
+// Generate generates a text response for the Text object.
+func (t *Text) Generate(ctx context.Context, client *anthropic.Client) error {
 	startTime := time.Now()
 	var err error
 	params := anthropic.MessageNewParams{
-		MaxTokens: text.MaxTokens,
-		Model:     anthropic.Model(text.Model),
-		Messages:  []anthropic.MessageParam{anthropic.NewUserMessage(anthropic.NewTextBlock(text.Prompt))},
+		MaxTokens: t.MaxTokens,
+		Model:     anthropic.Model(t.Model),
+		Messages:  []anthropic.MessageParam{anthropic.NewUserMessage(anthropic.NewTextBlock(t.Prompt))},
 	}
-	if len(text.System) > 0 {
+	if len(t.System) > 0 {
 		params.System = []anthropic.TextBlockParam{{
-			Text:         text.System,
+			Text:         t.System,
 			CacheControl: anthropic.NewCacheControlEphemeralParam(),
 		}}
 	}
-	message, err := client.Messages.New(ctx, params)
-	text.Response = ""
-	for _, block := range message.Content {
+	m, err := client.Messages.New(ctx, params)
+	t.Response = ""
+	for _, block := range m.Content {
 		if textBlock, ok := block.AsAny().(anthropic.TextBlock); ok {
-			text.Response += textBlock.Text
+			t.Response += textBlock.Text
 		}
 	}
-	text.StopReason = string(message.StopReason)
-	if len(message.StopDetails.Explanation) > 0 {
-		text.StopReason += " " + string(message.StopDetails.Category) + " " + message.StopDetails.Explanation
+	t.StopReason = string(m.StopReason)
+	if len(m.StopDetails.Explanation) > 0 {
+		t.StopReason += " " + string(m.StopDetails.Category) + " " + m.StopDetails.Explanation
 	}
-	text.InputTokens = message.Usage.InputTokens
-	text.OutputTokens = message.Usage.OutputTokens
+	t.InputTokens = m.Usage.InputTokens
+	t.OutputTokens = m.Usage.OutputTokens
 	if err != nil {
-		text.ErrMsg = err.Error()
+		t.ErrMsg = err.Error()
 	} else {
-		text.Categories = SelectCategories(text.Response, text.CategoryTerms, text.CategorySelect)
-		text.Scores = SelectScores(text.Response, text.ScoreSelect)
+		t.Categories = SelectCategories(t.Response, t.CategoryTerms, t.CategorySelect)
+		t.Scores = SelectScores(t.Response, t.ScoreSelect)
 	}
-	text.Millis = time.Since(startTime).Milliseconds()
-	return text, err
+	t.Millis = time.Since(startTime).Milliseconds()
+	return err
 }
 
 // GenerateTextParallel concurrently processes a single batch of text generations.
@@ -126,18 +126,18 @@ func GenerateTextParallel(ctx context.Context, client *anthropic.Client, texts [
 	results := make(chan Text, len(texts))
 	var wg sync.WaitGroup
 	wg.Add(len(texts))
-	for _, text := range texts {
-		go func(text Text) {
+	for _, t := range texts {
+		go func(t Text) {
 			defer wg.Done()
-			t, _ := GenerateText(ctx, client, text)
+			t.Generate(ctx, client)
 			results <- t
-		}(text)
+		}(t)
 	}
 	wg.Wait()
 	close(results)
 	batch := make(map[string]Text, len(texts))
-	for text := range results {
-		batch[text.ID] = text
+	for t := range results {
+		batch[t.ID] = t
 	}
 	return batch
 }

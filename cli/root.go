@@ -22,6 +22,7 @@ type RootCommand struct {
 	batchCmd    *BatchCommand
 	modelCmd    *ModelCommand
 	textCmd     *TextCommand
+	jsonCmd     *JsonCommand
 }
 
 // NewRootCommand creates and initializes the root command and all its subcommands.
@@ -105,6 +106,7 @@ func NewRootCommand(apiKey string, workspaceID string, apiClient *anthropic.Clie
 	c.batchCmd = NewBatchCommand(apiClient, c.rootCmd)
 	c.modelCmd = NewModelCommand(apiClient, c.rootCmd)
 	c.textCmd = NewTextCommand(apiClient, c.rootCmd)
+	c.jsonCmd = NewJsonCommand(apiClient, c.rootCmd)
 
 	return c
 }

@@ -126,7 +126,7 @@ func NewTextCommand(apiClient *anthropic.Client, root *cobra.Command) *TextComma
 	c.baseCmd.AddCommand(c.batchCmd)
 
 	// Results Command
-	// Example: psycode text results <batchID> data/scores.csv
+	// Example: psycode text results msgbatch_xxxxxxxxxxxxxxxxxxxxxxxx data/scores.csv
 	c.resultsCmd = &cobra.Command{
 		Use:   "results <batchID> <outputFile>",
 		Short: "Process batch results",
@@ -641,7 +641,7 @@ func (c *TextCommand) generateTextRequests(p psy.TextParameters) ([]psy.Text, *p
 // generateTextResponse generates a text response based on the provided Text object and selection.
 func (c *TextCommand) generateTextResponse(ctx context.Context, text psy.Text) error {
 	// Generate the text response:
-	text, err := psy.GenerateText(ctx, c.apiClient, text)
+	err := text.Generate(ctx, c.apiClient)
 	if err != nil {
 		return fmt.Errorf("text generation: %w", err)
 	}
@@ -664,7 +664,7 @@ func (c *TextCommand) processBatchResults(ctx context.Context, batchID string, p
 
 	// Verify that the batch has results:
 	if len(batch.ResultsURL) == 0 {
-		return fmt.Errorf("batch %s has no results", batchID)
+		return fmt.Errorf("batch %s has no results (yet?)", batchID)
 	}
 
 	// Read the incomplete results file:
@@ -680,45 +680,45 @@ func (c *TextCommand) processBatchResults(ctx context.Context, batchID string, p
 	texts := make(map[string]psy.Text)
 	stream := c.apiClient.Messages.Batches.ResultsStreaming(ctx, batchID, anthropic.MessageBatchResultsParams{})
 	for stream.Next() {
-		response := stream.Current()
-		text := psy.Text{
-			ID: response.CustomID,
+		r := stream.Current()
+		t := psy.Text{
+			ID: r.CustomID,
 		}
-		if len(text.ID) == 0 {
+		if len(t.ID) == 0 {
 			continue
 		}
-		switch variant := response.Result.AsAny().(type) {
+		switch variant := r.Result.AsAny().(type) {
 		case anthropic.MessageBatchSucceededResult:
 			successCount++
-			message := response.Result.Message
-			text.Response = ""
-			for _, block := range message.Content {
+			msg := r.Result.Message
+			t.Response = ""
+			for _, block := range msg.Content {
 				if textBlock, ok := block.AsAny().(anthropic.TextBlock); ok {
-					text.Response += textBlock.Text
+					t.Response += textBlock.Text
 				}
 			}
-			text.Categories = psy.SelectCategories(text.Response, p.CategoryTerms, p.CategorySelect)
-			text.Scores = psy.SelectScores(text.Response, p.ScoreSelect)
-			if len(text.Scores) > maxScoreCount {
-				maxScoreCount = len(text.Scores)
+			t.Categories = psy.SelectCategories(t.Response, p.CategoryTerms, p.CategorySelect)
+			t.Scores = psy.SelectScores(t.Response, p.ScoreSelect)
+			if len(t.Scores) > maxScoreCount {
+				maxScoreCount = len(t.Scores)
 			}
-			text.StopReason = string(message.StopReason)
-			if len(message.StopDetails.Explanation) > 0 {
-				text.StopReason += " " + string(message.StopDetails.Category) + " " + message.StopDetails.Explanation
+			t.StopReason = string(msg.StopReason)
+			if len(msg.StopDetails.Explanation) > 0 {
+				t.StopReason += " " + string(msg.StopDetails.Category) + " " + msg.StopDetails.Explanation
 			}
-			text.InputTokens = message.Usage.InputTokens
-			text.OutputTokens = message.Usage.OutputTokens
+			t.InputTokens = msg.Usage.InputTokens
+			t.OutputTokens = msg.Usage.OutputTokens
 		case anthropic.MessageBatchErroredResult:
 			errorCount++
-			text.ErrMsg = variant.Error.Error.Message
+			t.ErrMsg = variant.Error.Error.Message
 		case anthropic.MessageBatchExpiredResult:
 			errorCount++
-			text.ErrMsg = "Request expired."
+			t.ErrMsg = "Request expired."
 		case anthropic.MessageBatchCanceledResult:
 			errorCount++
-			text.ErrMsg = "Request canceled."
+			t.ErrMsg = "Request canceled."
 		}
-		texts[text.ID] = text
+		texts[t.ID] = t
 	}
 	err = stream.Err()
 	if err != nil {

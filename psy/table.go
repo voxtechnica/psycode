@@ -3,13 +3,15 @@ package psy
 import (
 	"encoding/csv"
 	"fmt"
-	"golang.org/x/text/encoding"
-	"golang.org/x/text/encoding/unicode"
-	"golang.org/x/text/transform"
 	"io"
 	"math/rand"
 	"os"
+	"slices"
 	"strings"
+
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 )
 
 // FileCache is a cache of file paths to their corresponding plain text contents.
@@ -36,12 +38,7 @@ func (t *Table) RecordCount() int {
 
 // HasField returns true if the field/column name is valid.
 func (t *Table) HasField(name string) bool {
-	for _, n := range t.FieldNames {
-		if n == name {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(t.FieldNames, name)
 }
 
 // AddField appends a new field/column name to the Table if it doesn't already exist.
