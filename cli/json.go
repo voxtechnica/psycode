@@ -386,7 +386,7 @@ func (c *JsonCommand) batchCreate(cmd *cobra.Command, args []string) error {
 
 	// If not waiting, provide instructions for monitoring progress:
 	if wait == 0 {
-		fmt.Printf("Created batch %s with %d requests.", b.ID, b.RequestCounts.Processing)
+		fmt.Printf("Created batch %s with %d requests.\n", b.ID, b.RequestCounts.Processing)
 		fmt.Println("Use the following command to monitor progress:")
 		fmt.Printf("psycode batch monitor %s\n", b.ID)
 		fmt.Println("Once the batch is done, use the following command to process the results:")
