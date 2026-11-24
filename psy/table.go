@@ -8,10 +8,7 @@ import (
 	"os"
 	"slices"
 	"strings"
-
-	"golang.org/x/text/encoding"
-	"golang.org/x/text/encoding/unicode"
-	"golang.org/x/text/transform"
+	"unicode"
 )
 
 // FileCache is a cache of file paths to their corresponding plain text contents.
@@ -109,8 +106,7 @@ func ReadCSVTable(path string) (*Table, error) {
 		return table, fmt.Errorf("read csv file %s: %w", path, err)
 	}
 	defer f.Close()
-	bomRemover := unicode.BOMOverride(encoding.Nop.NewDecoder())
-	r := csv.NewReader(transform.NewReader(f, bomRemover))
+	r := csv.NewReader(BOMRemover(f))
 
 	// Read the field/column names from the first row:
 	names, err := r.Read()
@@ -292,8 +288,7 @@ func ReadTextFile(path string) (string, error) {
 	}
 	defer f.Close()
 	// Read the file, stripping out a BOM character if present:
-	bomRemover := unicode.BOMOverride(encoding.Nop.NewDecoder())
-	b, err := io.ReadAll(transform.NewReader(f, bomRemover))
+	b, err := io.ReadAll(BOMRemover(f))
 	if err != nil {
 		return "", fmt.Errorf("read text file: read file %s: %w", path, err)
 	}
@@ -305,4 +300,20 @@ func ReadTextFile(path string) (string, error) {
 // CleanText removes any extra whitespace from the provided text.
 func CleanText(t string) string {
 	return strings.Join(strings.Fields(t), " ")
+}
+
+// CleanFieldName enforces field-naming rules.
+// It must be a single word with no leading or trailing punctuation.
+// Internal punctuation (e.g. hyphen or underscore) is allowed.
+// It cleans the text and returns the first word that matches the specification.
+func CleanFieldName(t string) (string, bool) {
+	for word := range strings.FieldsSeq(t) {
+		name := strings.TrimFunc(word, func(r rune) bool {
+			return !unicode.IsLetter(r) && !unicode.IsNumber(r)
+		})
+		if len(name) > 0 {
+			return name, true
+		}
+	}
+	return "", false
 }

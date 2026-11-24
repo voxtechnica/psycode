@@ -582,16 +582,11 @@ func (c *JsonCommand) saveResults(jsons map[string]psy.Json, results *psy.Table,
 			results.AddField("generation")
 		}
 		for _, c := range j.Codes {
-			name := c.Topic
-			if c.Subtopic != "" {
-				name += "_" + c.Subtopic
-			}
-			if name == "" {
-				name = "code"
-			}
-			r[name] = c.Code
-			if !results.HasField(name) {
-				results.AddField(name)
+			if name, ok := psy.CleanFieldName(c.Topic); ok {
+				r[name] = c.Code
+				if !results.HasField(name) {
+					results.AddField(name)
+				}
 			}
 		}
 	}
